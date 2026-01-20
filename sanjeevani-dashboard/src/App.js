@@ -1,4 +1,4 @@
-import React, { useState, useMemo,useEffect  } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   BarChart, Bar, ScatterChart, Scatter, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -6,22 +6,20 @@ import {
 } from 'recharts';
 import SanjeevaniLogo from './sanjeevani_icon.png';
 
-
 import {
   AlertTriangle, School, Baby, Ghost, TrendingUp, MapPin, Activity,
   LayoutDashboard, FileText, Settings, Bell, Filter, Menu, X, Shield,
-  Building2, Phone, Sliders, Globe, Zap, Play,Search
+  Building2, Phone, Sliders, Globe, Zap, Play, Search
 } from 'lucide-react';
 
 const ProjectSanjeevani = () => {
-
   // 🔥 DATA STATE
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 🔥 FETCH JSON DATA
   useEffect(() => {
-    fetch('/project_sanjeevani.json')
+    fetch(`${process.env.PUBLIC_URL}/project_sanjeevani.json`)
       .then(res => res.json())
       .then(json => {
         setData(json);
@@ -32,8 +30,6 @@ const ProjectSanjeevani = () => {
         setLoading(false);
       });
   }, []);
-
-
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -142,62 +138,103 @@ const ProjectSanjeevani = () => {
     return Object.values(grouped).slice(0, 10);
   }, [filteredData]);
 
-  const survivalData = useMemo(() => {
-  return filteredData.map(d => ({
-    pincode: d.pincode,
-    district: d.district_normalized,
+  // Poshan Panic District Data
+  const poshanDistrictData = useMemo(() => {
+    const grouped = {};
+    filteredData.forEach(d => {
+      if (!grouped[d.district_normalized]) {
+        grouped[d.district_normalized] = {
+          district: d.district_normalized,
+          poshanScore: 0,
+          infantsAtRisk: 0,
+          count: 0
+        };
+      }
+      grouped[d.district_normalized].poshanScore += d.Poshan_Panic_Score;
+      grouped[d.district_normalized].infantsAtRisk += d.enrollment_0_5;
+      grouped[d.district_normalized].count += 1;
+    });
+    return Object.values(grouped)
+      .map(g => ({
+        district: g.district,
+        avgPoshanScore: parseFloat((g.poshanScore / g.count).toFixed(2)),
+        infantsAtRisk: g.infantsAtRisk
+      }))
+      .sort((a, b) => b.avgPoshanScore - a.avgPoshanScore)
+      .slice(0, 10);
+  }, [filteredData]);
 
-    // X-axis (adult failure)
-    bioBarrierScore: d.Bio_Barrier_Score,
+  // Bio-Barrier District Data
+  const bioBarrierDistrictData = useMemo(() => {
+    const grouped = {};
+    filteredData.forEach(d => {
+      if (!grouped[d.district_normalized]) {
+        grouped[d.district_normalized] = {
+          district: d.district_normalized,
+          bioScore: 0,
+          retryCount: 0,
+          population: 0,
+          count: 0
+        };
+      }
+      grouped[d.district_normalized].bioScore += d.Bio_Barrier_Score;
+      grouped[d.district_normalized].retryCount += d.bio_updates_18_plus;
+      grouped[d.district_normalized].population += d.Total_Population;
+      grouped[d.district_normalized].count += 1;
+    });
+    return Object.values(grouped)
+      .map(g => ({
+        district: g.district,
+        avgBioScore: parseFloat((g.bioScore / g.count).toFixed(2)),
+        retryCount: g.retryCount,
+        population: g.population
+      }))
+      .sort((a, b) => b.avgBioScore - a.avgBioScore)
+      .slice(0, 15);
+  }, [filteredData]);
 
-    // Y-axis (infant hunger)
-    poshanScore: d.Poshan_Panic_Score,
-
-    population: d.Total_Population,
-    status: d.Poshan_Panic_Status,
-
-    // 🔥 size controls dot size
-    size: Math.sqrt(d.Total_Population || 1) / 40
-  }));
-}, [filteredData]);
-
-
-const funnelData = useMemo(() => {
-  const total_0_5 = filteredData.reduce(
-    (sum, d) => sum + d.enrollment_0_5, 0
-  );
-
-  const total_5_17 = filteredData.reduce(
-    (sum, d) => sum + d.enrollment_5_17, 0
-  );
-
-  // ✅ Active students CANNOT exceed enrolled students
-  const active_5_17 = Math.min(
-    filteredData.reduce((sum, d) => sum + d.bio_updates_5_17, 0),
-    total_5_17
-  );
-
-  return [
-    { stage: 'Babies Born (0-5)', value: total_0_5, fill: '#3b82f6' },
-    { stage: 'Students (5-17)', value: total_5_17, fill: '#f59e0b' },
-    { stage: 'Active Students', value: active_5_17, fill: '#10b981' }
-  ];
-}, [filteredData]);
-
+  const funnelData = useMemo(() => {
+    const total_0_5 = filteredData.reduce((sum, d) => sum + d.enrollment_0_5, 0);
+    const total_5_17 = filteredData.reduce((sum, d) => sum + d.enrollment_5_17, 0);
+    const active_5_17 = Math.min(
+      filteredData.reduce((sum, d) => sum + d.bio_updates_5_17, 0),
+      total_5_17
+    );
+    return [
+      { stage: 'Babies Born (0-5)', value: total_0_5, fill: '#3b82f6' },
+      { stage: 'Students Enrolled (5-17)', value: total_5_17, fill: '#f59e0b' },
+      { stage: 'Digitally Active Students', value: active_5_17, fill: '#10b981' }
+    ];
+  }, [filteredData]);
 
   const migrationTrend = useMemo(() => {
     const monthlyData = {};
     filteredData.forEach(d => {
-      if (!monthlyData[d.Month]) monthlyData[d.Month] = { month: d.Month, score: 0, count: 0 };
-      monthlyData[d.Month].score += d.Migration_Score;
+      if (!monthlyData[d.Month]) {
+        monthlyData[d.Month] = { month: d.Month, totalScore: 0, count: 0, nomadCount: 0 };
+      }
+      monthlyData[d.Month].totalScore += d.Migration_Score;
       monthlyData[d.Month].count += 1;
+      if (d.Migrant_Status === 'NOMAD') monthlyData[d.Month].nomadCount += 1;
     });
-    return Object.values(monthlyData).map(m => ({ month: m.month, avgScore: parseFloat((m.score / m.count).toFixed(2)) }));
+    return Object.values(monthlyData).map(m => ({
+      month: m.month,
+      migrationIntensity: parseFloat((m.totalScore / m.count).toFixed(2)),
+      nomadZones: m.nomadCount
+    }));
+  }, [filteredData]);
+
+  const migrationStats = useMemo(() => {
+    const totalZones = filteredData.length;
+    const nomadZones = filteredData.filter(d => d.Migrant_Status === 'NOMAD').length;
+    const stableZones = filteredData.filter(d => d.Migrant_Status === 'STABLE').length;
+    return { totalZones, nomadZones, stableZones };
   }, [filteredData]);
 
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', badge: null },
-    { id: 'survival', icon: AlertTriangle, label: 'Survival Monitor', badge: metrics.poshanRisk },
+    { id: 'poshan', icon: Baby, label: 'Poshan Panic', badge: metrics.poshanRisk },
+    { id: 'biobarrier', icon: Shield, label: 'Bio-Barrier Analysis', badge: null },
     { id: 'vidya', icon: School, label: 'Vidya Drift', badge: metrics.criticalZones },
     { id: 'ghost', icon: Ghost, label: 'Ghost Hunter', badge: metrics.ghostCount },
     { id: 'migrant', icon: MapPin, label: 'Nomad Radar', badge: null },
@@ -205,52 +242,141 @@ const funnelData = useMemo(() => {
     { id: 'settings', icon: Settings, label: 'Settings', badge: null }
   ];
 
-  const renderSurvivalMonitor = () => (
+  // 🍼 POSHAN PANIC COMPONENT
+  const renderPoshanPanic = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">⚠️ Survival Monitor - Immediate Crisis</h3>
-        <p className="text-gray-600 mb-6">Real-time friction heatmap showing blocked adults vs. starving families</p>
-        <ResponsiveContainer width="100%" height={500}>
-          <ScatterChart>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <ReferenceLine
-  x={0.6}
-  stroke="red"
-  strokeDasharray="5 5"
-  label="Bio Barrier Threshold"
-/>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">🍼 Poshan Panic - Child Hunger Risk Monitor</h3>
+        <p className="text-gray-600 mb-6">Tracking infant nutrition access failure (0-5 years) across districts</p>
 
-<ReferenceLine
-  y={0.6}
-  stroke="red"
-  strokeDasharray="5 5"
-  label="Poshan Risk Threshold"
-/>
-
-            <XAxis type="number" dataKey="bioBarrierScore" name="Bio Barrier Score" tick={{ fill: '#6b7280' }}
-              label={{ value: 'Adult Access Friction', position: 'insideBottom', offset: -5 }} />
-            <YAxis type="number" dataKey="poshanScore" name="Hunger Risk" tick={{ fill: '#6b7280' }}
-              label={{ value: 'Hunger Risk', angle: -90, position: 'insideLeft' }} />
-            <Tooltip cursor={{ strokeDasharray: '3 3' }}
-              contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
-            <Legend />
-            <Scatter name="Emergency Zones" data={survivalData.filter(d => d.status === 'CRITICAL')} fill="#dc2626" />
-            <Scatter name="Managed Zones" data={survivalData.filter(d => d.status === 'SAFE')} fill="#10b981" />
-          </ScatterChart>
-        </ResponsiveContainer>
-        <div className="mt-6 grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4">
-            <p className="text-sm font-semibold text-red-900">🚨 Emergency Action</p>
-            <p className="text-3xl font-bold text-red-600 mt-2">{survivalData.filter(d => d.status === 'CRITICAL').length}</p>
+            <p className="text-sm font-semibold text-red-900">Critical Infants</p>
+            <p className="text-3xl font-bold text-red-600 mt-2">{metrics.poshanRisk}</p>
+            <p className="text-xs text-red-700 mt-1">Children at nutrition risk</p>
           </div>
           <div className="bg-yellow-50 border-2 border-yellow-500 rounded-lg p-4">
-            <p className="text-sm font-semibold text-yellow-900">⚠️ High Friction</p>
-            <p className="text-3xl font-bold text-yellow-600 mt-2">{survivalData.filter(d => d.bioBarrierScore > 0.6).length}</p>
+            <p className="text-sm font-semibold text-yellow-900">Warning Districts</p>
+            <p className="text-3xl font-bold text-yellow-600 mt-2">
+              {filteredData.filter(d => d.Poshan_Panic_Score >= 0.3 && d.Poshan_Panic_Score < 0.6).length}
+            </p>
+            <p className="text-xs text-yellow-700 mt-1">Early warning zones</p>
           </div>
           <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
-            <p className="text-sm font-semibold text-green-900">✅ Safe Zones</p>
-            <p className="text-3xl font-bold text-green-600 mt-2">{survivalData.filter(d => d.status === 'SAFE').length}</p>
+            <p className="text-sm font-semibold text-green-900">Stable Zones</p>
+            <p className="text-3xl font-bold text-green-600 mt-2">
+              {filteredData.filter(d => d.Poshan_Panic_Score < 0.3).length}
+            </p>
+            <p className="text-xs text-green-700 mt-1">No immediate risk</p>
           </div>
+        </div>
+
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={poshanDistrictData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="district" tick={{ fill: '#6b7280', fontSize: 10 }} angle={-45} textAnchor="end" height={100} />
+            <YAxis yAxisId="left" orientation="left" tick={{ fill: '#6b7280' }} label={{ value: 'Poshan Score', angle: -90, position: 'insideLeft' }} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fill: '#6b7280' }} label={{ value: 'Infants at Risk', angle: 90, position: 'insideRight' }} />
+            <Tooltip />
+            <Legend />
+            <Bar yAxisId="left" dataKey="avgPoshanScore" fill="#dc2626" name="Poshan Risk Score" />
+            <Bar yAxisId="right" dataKey="infantsAtRisk" fill="#3b82f6" name="Infants (0-5)" />
+          </BarChart>
+        </ResponsiveContainer>
+
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h4 className="font-semibold text-blue-900 mb-2">📊 Risk Interpretation</h4>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="font-semibold">0.0 - 0.3:</span> Stable
+            </div>
+            <div>
+              <span className="font-semibold">0.3 - 0.6:</span> Early Warning
+            </div>
+            <div>
+              <span className="font-semibold">0.6 - 1.0:</span> Emergency
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 🚧 BIO-BARRIER COMPONENT
+  const renderBioBarrier = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">🚧 Bio-Barrier Analysis - Adult Access Friction</h3>
+        <p className="text-gray-600 mb-6">Identifying biometric authentication failures blocking welfare access</p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4">
+            <p className="text-sm font-semibold text-red-900">Blocked Zones</p>
+            <p className="text-3xl font-bold text-red-600 mt-2">
+              {filteredData.filter(d => d.Bio_Barrier_Status === 'BLOCKED').length}
+            </p>
+            <p className="text-xs text-red-700 mt-1">Access completely blocked</p>
+          </div>
+          <div className="bg-yellow-50 border-2 border-yellow-500 rounded-lg p-4">
+            <p className="text-sm font-semibold text-yellow-900">High Friction</p>
+            <p className="text-3xl font-bold text-yellow-600 mt-2">
+              {filteredData.filter(d => d.Bio_Barrier_Score >= 0.3 && d.Bio_Barrier_Score < 0.6).length}
+            </p>
+            <p className="text-xs text-yellow-700 mt-1">Moderate authentication issues</p>
+          </div>
+          <div className="bg-blue-50 border-2 border-blue-500 rounded-lg p-4">
+            <p className="text-sm font-semibold text-blue-900">Barrier Rate</p>
+            <p className="text-3xl font-bold text-blue-600 mt-2">{metrics.bioBarrierRate}%</p>
+            <p className="text-xs text-blue-700 mt-1">Overall failure rate</p>
+          </div>
+        </div>
+
+        <ResponsiveContainer width="100%" height={450}>
+          <ScatterChart>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis type="number" dataKey="avgBioScore" name="Bio Barrier Score"
+              label={{ value: 'Biometric Failure Score →', position: 'insideBottom', offset: -5 }}
+              tick={{ fill: '#6b7280' }} />
+            <YAxis type="number" dataKey="retryCount" name="Retry Attempts"
+              label={{ value: '← Authentication Retries', angle: -90, position: 'insideLeft' }}
+              tick={{ fill: '#6b7280' }} />
+            <Tooltip
+              cursor={{ strokeDasharray: '3 3' }}
+              content={({ payload }) => {
+                if (payload && payload.length > 0) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                      <p className="font-bold text-sm">{data.district}</p>
+                      <p className="text-xs mt-1">Bio Score: {data.avgBioScore}</p>
+                      <p className="text-xs">Retries: {data.retryCount.toLocaleString()}</p>
+                      <p className="text-xs">Population: {data.population.toLocaleString()}</p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Scatter
+              data={bioBarrierDistrictData.filter(d => d.avgBioScore >= 0.6)}
+              fill="#dc2626"
+              name="Blocked (>0.6)"
+            />
+            <Scatter
+              data={bioBarrierDistrictData.filter(d => d.avgBioScore < 0.6)}
+              fill="#10b981"
+              name="Normal (<0.6)"
+            />
+            <ReferenceLine x={0.6} stroke="red" strokeDasharray="5 5" label="Threshold" />
+          </ScatterChart>
+        </ResponsiveContainer>
+
+        <div className="mt-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <h4 className="font-semibold text-orange-900 mb-2">⚠️ What This Means</h4>
+          <p className="text-sm text-gray-700">
+            Adults blocked from biometric authentication cannot access ration, pension, or banking.
+            High retry counts indicate systemic device/network failures requiring mobile enrollment camps.
+          </p>
         </div>
       </div>
     </div>
@@ -298,8 +424,30 @@ const funnelData = useMemo(() => {
   const renderNomadRadar = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">📡 Nomad Radar - Migration Seismic Monitor</h3>
-        <p className="text-gray-600 mb-6">Tracking population movement volatility over time</p>
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">📡 Nomad Radar - Migration Seismic Monitor</h3>
+            <p className="text-gray-600">Tracking population movement volatility over time</p>
+          </div>
+          <div className="bg-purple-50 border-2 border-purple-500 rounded-lg p-4 min-w-[200px]">
+            <p className="text-sm font-semibold text-purple-900 mb-2">Zone Classification</p>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-700">Nomad Zones:</span>
+                <span className="font-bold text-purple-600">{migrationStats.nomadZones}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-700">Stable Zones:</span>
+                <span className="font-bold text-green-600">{migrationStats.stableZones}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-purple-200">
+                <span className="text-gray-700">Total:</span>
+                <span className="font-bold text-gray-900">{migrationStats.totalZones}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <ResponsiveContainer width="100%" height={400}>
           <AreaChart data={migrationTrend}>
             <defs>
@@ -310,25 +458,57 @@ const funnelData = useMemo(() => {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="month" tick={{ fill: '#6b7280' }} />
-            <YAxis tick={{ fill: '#6b7280' }} />
-            <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
-            <Area type="monotone" dataKey="avgScore" stroke="#8b5cf6" fill="url(#migrationGradient)" strokeWidth={3} />
+            <YAxis tick={{ fill: '#6b7280' }} label={{ value: 'Migration Intensity', angle: -90, position: 'insideLeft' }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              content={({ payload }) => {
+                if (payload && payload.length > 0) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                      <p className="font-bold text-sm">{data.month}</p>
+                      <p className="text-xs mt-1">Migration Intensity: {data.migrationIntensity}</p>
+                      <p className="text-xs">Nomad Zones: {data.nomadZones}</p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Area type="monotone" dataKey="migrationIntensity" stroke="#8b5cf6" fill="url(#migrationGradient)" strokeWidth={3} />
           </AreaChart>
         </ResponsiveContainer>
+
+        <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <h4 className="font-semibold text-purple-900 mb-2">📊 Migration Intensity Explained</h4>
+          <p className="text-sm text-gray-700 mb-2">
+            Higher values indicate zones where people frequently change addresses - signaling seasonal migration or economic instability.
+          </p>
+          <p className="text-sm font-semibold text-purple-800">
+            💡 Deploy mobile enrollment camps in high-intensity (purple spike) zones during peak seasons.
+          </p>
+        </div>
       </div>
     </div>
   );
 
   const renderFutureHealth = () => {
-    const conversionRate = funnelData[1].value > 0 ? ((funnelData[2].value / funnelData[1].value) * 100).toFixed(1) : 0;
+    const enrolledStudents = funnelData[1].value;
+    const activeStudents = funnelData[2].value;
+    const conversionRate = enrolledStudents > 0 ? ((activeStudents / enrolledStudents) * 100).toFixed(1) : 0;
+    const dropoutCount = enrolledStudents - activeStudents;
+    const dropoutRate = enrolledStudents > 0 ? (((enrolledStudents - activeStudents) / enrolledStudents) * 100).toFixed(1) : 0;
     const isHealthy = conversionRate > 70;
+
     return (
       <div className="space-y-6">
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-xl font-semibold text-gray-900 mb-2">🔮 Future Health - Pipeline Funnel</h3>
-          <p className="text-gray-600 mb-6">Visualizing demographic progression and dropout rates</p>
+          <p className="text-gray-600 mb-6">Tracking student enrollment to digital activation - measuring system dropout</p>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
+              <h4 className="font-semibold text-gray-900">Demographic Flow</h4>
               {funnelData.map((stage, idx) => {
                 const widthPercent = idx === 0 ? 100 : (stage.value / funnelData[0].value) * 100;
                 return (
@@ -339,7 +519,7 @@ const funnelData = useMemo(() => {
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-8">
                       <div className="h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                        style={{ width: `${widthPercent}%`, backgroundColor: stage.fill, minWidth: '60px' }}>
+                        style={{ width: `${Math.max(widthPercent, 5)}%`, backgroundColor: stage.fill, minWidth: '60px' }}>
                         {widthPercent.toFixed(0)}%
                       </div>
                     </div>
@@ -349,15 +529,23 @@ const funnelData = useMemo(() => {
             </div>
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-900 mb-3">📈 Conversion Rate</h4>
-                <div className="text-center">
-                  <p className="text-4xl font-bold text-green-600">{conversionRate}%</p>
+                <h4 className="font-semibold text-blue-900 mb-3">📈 Conversion Metrics</h4>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Students → Active Rate</p>
+                    <p className="text-3xl font-bold text-green-600">{conversionRate}%</p>
+                  </div>
+                  <div className="pt-3 border-t border-blue-200">
+                    <p className="text-xs text-gray-600 mb-1">Dropout Count</p>
+                    <p className="text-2xl font-bold text-red-600">{dropoutCount.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 mt-1">({dropoutRate}% dropout rate)</p>
+                  </div>
                 </div>
               </div>
               <div className={`border-2 rounded-lg p-4 ${isHealthy ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
                 <h4 className="font-semibold mb-2">{isHealthy ? '✅ Healthy Pipeline' : '⚠️ Leaky Funnel'}</h4>
                 <p className="text-sm text-gray-700">
-                  {isHealthy ? 'Good retention rate. System functioning well.' : 'High dropout detected. Investigate barriers.'}
+                  {isHealthy ? 'Good retention rate. System functioning well.' : 'High dropout detected. Investigate barriers like device access, connectivity, or awareness gaps.'}
                 </p>
               </div>
             </div>
@@ -524,15 +712,15 @@ const funnelData = useMemo(() => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Survival Monitor Preview</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Poshan Risk Preview</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <ScatterChart>
+            <BarChart data={poshanDistrictData.slice(0, 5)}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" dataKey="bioBarrierScore" />
-              <YAxis type="number" dataKey="poshanScore" />
+              <XAxis dataKey="district" tick={{ fontSize: 10 }} />
+              <YAxis />
               <Tooltip />
-              <Scatter data={survivalData.slice(0, 20)} fill="#dc2626" />
-            </ScatterChart>
+              <Bar dataKey="avgPoshanScore" fill="#dc2626" />
+            </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -553,7 +741,8 @@ const funnelData = useMemo(() => {
 
   const renderContent = () => {
     switch(activeSection) {
-      case 'survival': return renderSurvivalMonitor();
+      case 'poshan': return renderPoshanPanic();
+      case 'biobarrier': return renderBioBarrier();
       case 'vidya': return renderVidyaDrift();
       case 'ghost': return renderGhostHunter();
       case 'migrant': return renderNomadRadar();
@@ -562,7 +751,8 @@ const funnelData = useMemo(() => {
       default: return renderDashboard();
     }
   };
-    // 🔥 LOADING SCREEN
+
+  // 🔥 LOADING SCREEN
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -576,7 +766,6 @@ const funnelData = useMemo(() => {
     );
   }
 
-
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-blue-900 text-white transition-all duration-300 flex flex-col`}>
@@ -585,16 +774,13 @@ const funnelData = useMemo(() => {
             {sidebarOpen ? (
               <>
                 <div className="flex items-center gap-3">
-                  {/* Logo Placeholder */}
                   <div className="flex items-center gap-3">
-  <img
-    src={SanjeevaniLogo}
-    alt="Project Sanjeevani Logo"
-    className="w-10 h-10 rounded-lg shadow-lg object-contain"
-  />
-  
-</div>
-
+                    <img
+                      src={SanjeevaniLogo}
+                      alt="Project Sanjeevani Logo"
+                      className="w-10 h-10 rounded-lg shadow-lg object-contain"
+                    />
+                  </div>
                   <div>
                     <h1 className="text-lg font-bold">SANJEEVANI</h1>
                     <p className="text-xs text-blue-300">Digital India</p>
@@ -683,7 +869,6 @@ const funnelData = useMemo(() => {
                     className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
                   />
 
-                  {/* Search Results Dropdown */}
                   {showSearchResults && searchResults.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
                       <div className="p-2 border-b border-gray-100 bg-gray-50">
@@ -754,7 +939,6 @@ const funnelData = useMemo(() => {
                     </div>
                   )}
 
-                  {/* No Results Message */}
                   {showSearchResults && searchQuery && searchResults.length === 0 && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-4 text-center">
                       <AlertTriangle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
