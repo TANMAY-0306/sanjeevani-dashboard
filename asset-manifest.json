@@ -1,0 +1,14 @@
+{
+  "files": {
+    "main.css": "/sanjeevani-dashboard/static/css/main.d9501d35.css",
+    "main.js": "/sanjeevani-dashboard/static/js/main.a726bc42.js",
+    "static/media/sanjeevani_icon.png": "/sanjeevani-dashboard/static/media/sanjeevani_icon.d408dc9927eded664d6a.png",
+    "index.html": "/sanjeevani-dashboard/index.html",
+    "main.d9501d35.css.map": "/sanjeevani-dashboard/static/css/main.d9501d35.css.map",
+    "main.a726bc42.js.map": "/sanjeevani-dashboard/static/js/main.a726bc42.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.d9501d35.css",
+    "static/js/main.a726bc42.js"
+  ]
+}
