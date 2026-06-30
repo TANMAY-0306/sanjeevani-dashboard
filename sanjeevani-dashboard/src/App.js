@@ -8,7 +8,7 @@ import SanjeevaniLogo from './sanjeevani_icon.png';
 
 import {
   AlertTriangle, School, Baby, Ghost, TrendingUp, MapPin, Activity,
-  LayoutDashboard, FileText, Settings, Bell, Filter, Menu, X, Shield,
+  LayoutDashboard, Settings, Bell, Filter, Menu, X, Shield,
   Building2, Phone, Sliders, Globe, Zap, Play, Search
 } from 'lucide-react';
 
